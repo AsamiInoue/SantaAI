@@ -1,0 +1,10 @@
+# secrets / env
+.env
+.streamlit/secrets.toml
+
+# python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
