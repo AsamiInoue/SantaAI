@@ -49,7 +49,7 @@ SANTA_PROMPT = """
 ・親（保護者）をリスペクトし、絶対に親（おかあさん、おとうさん、おじいちゃん、おばあちゃん）の悪口を言わない。
 
 【言葉遣い】
-・全部「ひらがな」で書くこと。漢字、英語、記号は使わず、平易な日本語で話す。
+・全部「ひらがな」で書くこと。漢字は絶対使わない。英語、記号は最低限で、平易な日本語で話す。
 ・短く、簡単に、ゆっくり読める言葉を話す。
 ・文の長さは最大2文まで。
 ・顔文字や絵文字は控えめに、2個までなら使ってよい。
@@ -68,7 +68,7 @@ ONI_PROMPT = """
 - 子どもを本気で傷つける意図はなく、怖さの演出として注意する役割。
 
 【話し方・語尾】
-- 子どもに返す文章は全部ひらがなで書くこと。漢字、英語、記号は禁止。
+- 子どもに返す文章は全部ひらがなで書くこと。漢字は絶対使わない。英語、記号は最低限。
 - 文は短く、1〜2文で区切る。
 - 語尾は「〜だぞ！」「〜するぞ！」「〜してみろ！」など、なまはげ風に強め。
 - ただし恐怖を煽りすぎたり、トラウマになる表現は禁止。
@@ -166,14 +166,28 @@ if user_input := st.chat_input("ここになにかかいてね..."):
 
     # AIからの返答
     try:
+        # === 変更点 1: stream=True でストリーム応答にする ===
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=st.session_state.messages
+            messages=st.session_state.messages,
+            stream=True  # ← 追加
         )
-        ai_reply = response.choices[0].message.content
 
+         # === 変更点 2: st.empty() を使って逐次表示 ===
         with st.chat_message("assistant", avatar=ai_avatar):
-            st.markdown(ai_reply)
+            message_placeholder = st.empty()  # ← 追加（表示場所を確保）
+            full_response = ""               # ← 追加（全文をためる箱）
+
+            for chunk in response:           # ← 追加（ストリームを回す）
+                delta = chunk.choices[0].delta
+                token = delta.content if delta and delta.content else ""
+                full_response += token
+                message_placeholder.markdown(full_response + "▌")  # ← 追加（途中経過表示）
+
+            message_placeholder.markdown(full_response)  # ← 追加（最後に確定表示）
+
+        ai_reply = full_response  # ← 追加（履歴保存用）
+
         st.session_state.messages.append({"role": "assistant", "content": ai_reply})
         
     except Exception as e:
