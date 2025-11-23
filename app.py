@@ -60,9 +60,6 @@ def load_child_total(child_name: str) -> int:
             "total_points": 0
         }).execute()
         return 0    
-    
-if "total_points" not in st.session_state:
-    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])
 
 # 2. 「前回のモード」を覚えておく箱を作る（最初は空っぽ）
 if "current_mode" not in st.session_state:
@@ -161,10 +158,6 @@ else:
     # 鬼モードならではの演出（背景を赤っぽくする警告など）
     st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
-# ポイントのセッション初期化
-if "total_points" not in st.session_state:
-    st.session_state["total_points"] = 0
-
 # Supabaseから有効なキーワード取得
 def fetch_active_keywords():
     res = supabase.table("Otetsudai_Keywords") \
@@ -200,15 +193,14 @@ def upsert_child_total(child_name, new_total):
     }).execute()
 
 # 最初にSupabase側の合計を読み込む（ページ初回だけ）
-if "loaded_points" not in st.session_state:
-    st.session_state["loaded_points"] = True
-    if st.session_state["child_name"]:
-        res = supabase.table("For_Children") \
-            .select("total_points") \
-            .eq("child_name", st.session_state["child_name"]) \
-            .execute()
-        if res.data:
-            st.session_state["total_points"] = res.data[0]["total_points"]
+# 「前回読み込んだ名前」を覚えておく
+if "prev_child_name" not in st.session_state:
+    st.session_state["prev_child_name"] = ""
+
+# 名前が入力されていて、前回と違うならDBから読み込む
+if st.session_state["child_name"] and st.session_state["child_name"] != st.session_state["prev_child_name"]:
+    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])  # ←DBから復元
+    st.session_state["prev_child_name"] = st.session_state["child_name"]                 # ←名前更新
 
 # --------------------------------
 
