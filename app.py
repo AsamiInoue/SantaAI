@@ -1,5 +1,6 @@
 import streamlit as st
 from openai import OpenAI
+from supabase import create_client  # Supabase接続
 
 # ==========================================
 # 1. 設定部分
@@ -20,8 +21,29 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
+# Supabaseからお手伝いキーワードやポイントを持ってくる
+
+if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
+    st.error("Supabaseの設定（SUPABASE_URL / SUPABASE_ANON_KEY）がsecrets.tomlにありません。")
+    st.stop()
+
+supabase = create_client(
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_ANON_KEY"]
+)
+
 # 1. サイドバーでモード切り替えスイッチを作る
 mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
+
+# 2. 子どもの名前（ログイン不要なので入力だけ）
+if "child_name" not in st.session_state:
+    st.session_state["child_name"] = ""
+
+child_name_input = st.sidebar.text_input("おなまえ（ひらがな）", value=st.session_state["child_name"])
+st.session_state["child_name"] = child_name_input.strip()
+
+if not st.session_state["child_name"]:
+    st.sidebar.info("おなまえをいれてね")
 
 # 2. 「前回のモード」を覚えておく箱を作る（最初は空っぽ）
 if "current_mode" not in st.session_state:
@@ -121,6 +143,55 @@ else:
     # 鬼モードならではの演出（背景を赤っぽくする警告など）
     st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
+# ポイントのセッション初期化
+if "total_points" not in st.session_state:
+    st.session_state["total_points"] = 0
+
+# Supabaseから有効なキーワード取得
+def fetch_active_keywords():
+    res = supabase.table("Otetsudai_Keywords") \
+        .select("id, keyword, points, category") \
+        .eq("is_active", True) \
+        .execute()
+    return res.data or []
+
+# 入力文 → マッチ判定して加点計算
+def calc_points(text, keywords):
+    matched_rows = []
+    for row in keywords:
+        if row["keyword"] in text:
+            matched_rows.append(row)
+    total = sum(r["points"] for r in matched_rows)
+    return total, matched_rows
+
+# Points_logに保存
+def insert_points_log(child_name, matched_rows, user_text):
+    for r in matched_rows:
+        supabase.table("Points_log").insert({
+            "child_name": child_name,
+            "keyword_id": r["id"],
+            "matched_text": user_text,
+            "points": r["points"],
+        }).execute()
+
+# For_Children
+def upsert_child_total(child_name, new_total):
+    supabase.table("For_Children").upsert({
+        "child_name": child_name,
+        "total_points": new_total
+    }).execute()
+
+# 最初にSupabase側の合計を読み込む（ページ初回だけ）
+if "loaded_points" not in st.session_state:
+    st.session_state["loaded_points"] = True
+    if st.session_state["child_name"]:
+        res = supabase.table("For_Children") \
+            .select("total_points") \
+            .eq("child_name", st.session_state["child_name"]) \
+            .execute()
+        if res.data:
+            st.session_state["total_points"] = res.data[0]["total_points"]
+
 # --------------------------------
 
 # ==========================================
@@ -139,6 +210,9 @@ if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
 
 # モードを切り替えたら、AIの中身（システムプロンプト）も強制的に書き換える
 st.session_state.messages[0] = {"role": "system", "content": system_prompt}
+
+# サイドバーにポイント表示（子どもが見えるように）
+st.sidebar.metric("たまったポイント", st.session_state["total_points"])
 
 # 会話履歴の表示
 for msg in st.session_state.messages:
@@ -163,6 +237,23 @@ if user_input := st.chat_input("ここになにかかいてね..."):
     with st.chat_message("user", avatar="🧒"):
         st.markdown(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
+
+ # キーワード判定 → ポイント加算
+    if st.session_state["child_name"]:
+        keywords = fetch_active_keywords()
+        add_points, matched_rows = calc_points(user_input, keywords)
+
+        if add_points > 0:
+            st.session_state["total_points"] += add_points
+
+            # Points_log に保存
+            insert_points_log(st.session_state["child_name"], matched_rows, user_input)
+
+            # For Children に合計保存
+            upsert_child_total(st.session_state["child_name"], st.session_state["total_points"])
+
+            matched_words = [r["keyword"] for r in matched_rows]
+            st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
 
     # AIからの返答
     try:
