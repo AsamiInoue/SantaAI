@@ -221,6 +221,9 @@ if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
 # モードを切り替えたら、AIの中身（システムプロンプト）も強制的に書き換える
 st.session_state.messages[0] = {"role": "system", "content": system_prompt}
 
+if "total_points" not in st.session_state:
+    st.session_state["total_points"] = 0
+
 # サイドバーにポイント表示（子どもが見えるように）
 st.sidebar.metric("たまったポイント", st.session_state["total_points"])
 
