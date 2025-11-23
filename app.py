@@ -45,6 +45,25 @@ st.session_state["child_name"] = child_name_input.strip()
 if not st.session_state["child_name"]:
     st.sidebar.info("おなまえをいれてね")
 
+def load_child_total(child_name: str) -> int:
+    res = supabase.table("For_Children") \
+        .select("total_points") \
+        .eq("child_name", child_name) \
+        .execute()
+
+    if res.data and len(res.data) > 0:
+        return res.data[0]["total_points"]
+    else:
+        # 登録がない子は0で新規作成しておく
+        supabase.table("For_Children").insert({
+            "child_name": child_name,
+            "total_points": 0
+        }).execute()
+        return 0    
+    
+if "total_points" not in st.session_state:
+    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])
+
 # 2. 「前回のモード」を覚えておく箱を作る（最初は空っぽ）
 if "current_mode" not in st.session_state:
     st.session_state["current_mode"] = mode
