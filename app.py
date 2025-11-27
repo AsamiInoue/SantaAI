@@ -254,6 +254,9 @@ def upsert_child_total(child_name, new_total):
         "total_points": new_total
     }).execute()
 
+if "show_end_dialog" not in st.session_state:
+    st.session_state["show_end_dialog"] = False
+
 # --------------------------------
 # 画面レイアウト（左/右）
 # --------------------------------
@@ -273,7 +276,6 @@ with right_col:
         st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
     # イラスト枠（仮URL）
-    st.markdown("#### イラスト")
     st.image(
         "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
         width=200,  # ←サイズはここで調整
@@ -313,7 +315,9 @@ for msg in st.session_state.messages:
 
 # ユーザーが何か入力したら実行される
 if user_input := st.chat_input("ここになにかかいてね..."):
-    
+
+    st.session_state["show_end_dialog"] = False 
+
     # ユーザーの入力表示
     with st.chat_message("user", avatar="🧒"):
         st.markdown(user_input)
