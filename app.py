@@ -7,7 +7,33 @@ from supabase import create_client  # Supabase接続
 # ==========================================
 
 # ページの設定（タイトルやアイコン）
-st.set_page_config(page_title="いいこのおはなしアプリ", page_icon="🎁")
+st.set_page_config(page_title="いいこのおはなしアプリ", page_icon="🎁", layout="wide")  # wideで横長UI
+
+# ---- CSSでざっくりフレーム寄せ（見た目調整）----
+# === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
+st.markdown("""
+<style>
+/* 全体余白を少し詰める */
+.block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+
+/* 左のポイント箱っぽく */
+.points-box {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 16px;
+    background: #fafafa;
+    height: 100%;
+}
+
+/* 右側のカード風 */
+.right-card {
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 16px;
+    background: white;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # secrets.toml からキーを取得
 if "OPENAI_API_KEY" in st.secrets:
@@ -204,6 +230,42 @@ if st.session_state["child_name"] and st.session_state["child_name"] != st.sessi
 
 # --------------------------------
 
+
+# 画面左右カラム
+left_col, right_col = st.columns([1, 4], gap="large")  # 左細/右太
+
+with left_col:
+    st.markdown('<div class="points-box">', unsafe_allow_html=True)
+    st.markdown("#### よいこポイント")
+    st.markdown(f"**いまのポイント： {st.session_state['total_points']}**")
+    st.markdown("**もくひょうポイント：**（あとで決めよう）")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with right_col:
+    # 右上「チャットを終わる」ボタンを行として配置
+    header_l, header_r = st.columns([6, 1])
+    with header_l:
+        st.markdown(f"### {ai_avatar} {header_title}")
+    with header_r:
+        # 終了ボタン押下でダイアログ表示フラグON
+        if st.button("チャットを終わる"):
+            st.session_state["show_end_dialog"] = True
+
+    # イラスト枠（仮URL）
+    st.markdown('<div class="right-card">', unsafe_allow_html=True)
+    st.markdown("#### イラスト")
+    st.image(
+        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
+        caption="サンタさん）",
+        use_container_width=True
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.write("")  # 少し余白
+
+    # チャット表示エリア
+    chat_container = st.container(border=True)  # 枠つきにしてボックス感
+
 # ==========================================
 # 2. チャットのロジック部分
 # ==========================================
@@ -296,3 +358,42 @@ if user_input := st.chat_input("ここになにかかいてね..."):
         
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
+
+    # ★追加: ダイアログ表示用フラグの初期化
+if "show_end_dialog" not in st.session_state:
+    st.session_state["show_end_dialog"] = False
+
+if st.session_state["show_end_dialog"]:
+    # Streamlitのダイアログ（モーダル風）
+    @st.dialog("チャットを終わりますか？")
+    def end_chat_dialog():
+        st.write("ほごしゃのぱすわーどをいれてね。")
+
+        # ★ここでパスワード入力
+        pw = st.text_input("パスワード", type="password")
+
+        # TODO: ここに「正しいパスワード」をあとで設定する
+        # ex) CORRECT_PASSWORD = "xxxx"
+        CORRECT_PASSWORD = "password"  # ←あとで決めた値に差し替える
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("キャンセル"):
+                st.session_state["show_end_dialog"] = False
+                st.rerun()
+
+        with col_b:
+            if st.button("チャットを終わる"):
+                # ★パスワード一致チェック
+                if pw == CORRECT_PASSWORD:
+                    st.session_state["show_end_dialog"] = False
+
+                    # TODO: ここで「親の管理画面」に遷移する想定
+                    # いまは管理画面未実装なので、会話履歴リセットだけしておく
+                    st.session_state["messages"] = []
+                    st.success("チャットをおわったよ。")
+                    st.rerun()
+                else:
+                    st.error("ぱすわーどがちがうよ。")
+
+    end_chat_dialog()
