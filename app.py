@@ -13,25 +13,35 @@ st.set_page_config(page_title="いいこのおはなしアプリ", page_icon="�
 # === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
 st.markdown("""
 <style>
-/* 全体余白を少し詰める */
-.block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-
-/* 左のポイント箱っぽく */
-.points-box {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 16px;
-    background: #fafafa;
-    height: 100%;
+/* ページ全体の左右余白を減らす */
+.main .block-container {
+    padding-top: 1.2rem;
+    padding-bottom: 1.5rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 100%;
 }
 
-/* 右側のカード風 */
-.right-card {
-    border: 1px solid #eee;
-    border-radius: 10px;
-    padding: 16px;
-    background: white;
+/* 上部のデフォルト空白を少し詰める */
+header[data-testid="stHeader"] {
+    height: 0rem;
 }
+
+/* タイトル行を折り返さない（切れを防ぐ） */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.app-title {
+    font-size: 32px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,10 +68,14 @@ supabase = create_client(
     st.secrets["SUPABASE_ANON_KEY"]
 )
 
-# 1. サイドバーでモード切り替えスイッチを作る
+# ---------------------------
+# サイドバー：モード & 名前 & ポイント
+# ---------------------------
+
+# モード切り替え
 mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
 
-# 2. 子どもの名前（ログイン不要なので入力だけ）
+# 子どもの名前（ログイン不要なので入力だけ）
 if "child_name" not in st.session_state:
     st.session_state["child_name"] = ""
 
@@ -70,6 +84,8 @@ st.session_state["child_name"] = child_name_input.strip()
 
 if not st.session_state["child_name"]:
     st.sidebar.info("おなまえをいれてね")
+
+# DBから累計ポイント取得
 
 def load_child_total(child_name: str) -> int:
     res = supabase.table("For_Children") \
@@ -87,18 +103,41 @@ def load_child_total(child_name: str) -> int:
         }).execute()
         return 0    
 
-# 2. 「前回のモード」を覚えておく箱を作る（最初は空っぽ）
+# total_points を必ず先に用意（KeyError防止）
+if "total_points" not in st.session_state:
+    st.session_state["total_points"] = 0
+
+# 名前が変わったタイミングでDBからポイント復元
+if "prev_child_name" not in st.session_state:
+    st.session_state["prev_child_name"] = ""
+
+if st.session_state["child_name"] and st.session_state["child_name"] != st.session_state["prev_child_name"]:
+    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])
+    st.session_state["prev_child_name"] = st.session_state["child_name"]
+
+# よいこポイント
+with st.sidebar:
+    st.markdown("### よいこポイント")
+    st.metric("いまのポイント", st.session_state["total_points"])
+    st.caption("もくひょうポイント： （あとで決めよう）")  # TODO: 目標ポイントはあとで決定
+
+# ---------------------------
+# モード切替時に会話履歴をリセット
+# ---------------------------
+
 if "current_mode" not in st.session_state:
     st.session_state["current_mode"] = mode
 
-# 3. 「今回選んだモード」と「前回のモード」が違うかチェック！
+# 「今回選んだモード」と「前回のモード」が違うかチェック！
 if st.session_state["current_mode"] != mode:
     # 違っていたら（＝切り替えたら）、会話履歴を空っぽにする
     st.session_state["messages"] = []
     # 「前回のモード」を新しい方に更新しておく
     st.session_state["current_mode"] = mode
 
-# 4. それぞれの性格設定（プロンプト）を用意
+# ---------------------------
+# キャラプロンプト
+# ---------------------------
 SANTA_PROMPT = """
 あなたは子供が大好きな、優しくて温かいサンタクロースです。
 子供とお話して、いいことをしたらたくさん褒め、嫌なことや悪いことをしたら優しく諭してあげます。
@@ -180,9 +219,6 @@ else:
     header_title = "👹 コラ！おにさんだぞ！" 
     system_prompt = ONI_PROMPT
     ai_avatar = "👹"
-    
-    # 鬼モードならではの演出
-    st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
 # Supabaseから有効なキーワード取得
 def fetch_active_keywords():
@@ -218,63 +254,37 @@ def upsert_child_total(child_name, new_total):
         "total_points": new_total
     }).execute()
 
-# 最初にSupabase側の合計を読み込む（ページ初回だけ）
-# 「前回読み込んだ名前」を覚えておく
-if "prev_child_name" not in st.session_state:
-    st.session_state["prev_child_name"] = ""
-
-# 名前が入力されていて、前回と違うならDBから読み込む
-if st.session_state["child_name"] and st.session_state["child_name"] != st.session_state["prev_child_name"]:
-    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])  # ←DBから復元
-    st.session_state["prev_child_name"] = st.session_state["child_name"]                 # ←名前更新
-
-# --- total_points を必ず先に用意しておく（KeyError防止） ---
-if "total_points" not in st.session_state:
-    st.session_state["total_points"] = 0
-
 # --------------------------------
+# 画面レイアウト（左/右）
+# --------------------------------
+left_col, right_col = st.columns([1, 4], gap="large")
 
-# 画面左右カラム
-left_col, right_col = st.columns([1, 4], gap="large")  # 左細/右太
-
-with left_col:
-    st.markdown('<div class="points-box">', unsafe_allow_html=True)
-    st.markdown("#### よいこポイント")
-    st.markdown(f"**いまのポイント： {st.session_state['total_points']}**")
-    st.markdown("**もくひょうポイント：**（あとで決めよう）")
-    st.markdown("</div>", unsafe_allow_html=True)
-
+# 右側メインUI
 with right_col:
-    # 右上「チャットを終わる」ボタンを行として配置
-    header_l, header_r = st.columns([6, 1])
-    with header_l:
-        st.markdown(f"### {ai_avatar} {header_title}")
-    with header_r:
-        # 終了ボタン押下でダイアログ表示フラグON
+    # ヘッダー行（タイトル＋終了ボタン）
+    col_title, col_btn = st.columns([8, 2])
+    with col_title:
+        st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
+    with col_btn:
         if st.button("チャットを終わる"):
-            st.session_state["show_end_dialog"] = True
+            st.session_state["show_end_dialog"] = True  # ←ダイアログ表示フラグON
+
+    if mode == "おにさん 👹":
+        st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
     # イラスト枠（仮URL）
-    st.markdown('<div class="right-card">', unsafe_allow_html=True)
     st.markdown("#### イラスト")
     st.image(
-        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png", width=200,
-        caption="サンタさん）"
+        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
+        width=200,  # ←サイズはここで調整
+        caption="サンタさん"
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.write("")  # 少し余白
-
-    # チャット表示エリア
-    chat_container = st.container(border=True)  # 枠つきにしてボックス感
+    st.write("")
 
 # ==========================================
 # 2. チャットのロジック部分
 # ==========================================
-
-if not api_key:
-    st.warning("設定ファイル(.streamlit/secrets.toml)が見つからないか、サイドバーにキーが入っていません。")
-    st.stop()
 
 # セッション（会話履歴）の初期化
 if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
@@ -284,12 +294,6 @@ if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
 
 # モードを切り替えたら、AIの中身（システムプロンプト）も強制的に書き換える
 st.session_state.messages[0] = {"role": "system", "content": system_prompt}
-
-if "total_points" not in st.session_state:
-    st.session_state["total_points"] = 0
-
-# サイドバーにポイント表示（子どもが見えるように）
-st.sidebar.metric("たまったポイント", st.session_state["total_points"])
 
 # 会話履歴の表示
 for msg in st.session_state.messages:
@@ -361,7 +365,9 @@ if user_input := st.chat_input("ここになにかかいてね..."):
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
 
-    # ★追加: ダイアログ表示用フラグの初期化
+# ==========================================
+# 4. チャット終了ダイアログ
+# ==========================================
 if "show_end_dialog" not in st.session_state:
     st.session_state["show_end_dialog"] = False
 
