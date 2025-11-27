@@ -173,13 +173,13 @@ ONI_PROMPT = """
 """
 # 5. モードに合わせて変数の中身を変える
 if mode == "サンタさん 🎅":
+    header_title = "🎅 サンタさんとおはなししよう！"  # ← 追加
     system_prompt = SANTA_PROMPT
     ai_avatar = "🎅"
-    st.title("🎅 サンタさんとおはなししよう！")
 else:
+    header_title = "👹 コラ！おにさんだぞ！"          # ← 追加
     system_prompt = ONI_PROMPT
-    ai_avatar = "👹" # 鬼のアイコン
-    st.title("👹 コラ！おにさんだぞ！") # タイトルも変える
+    ai_avatar = "👹"
     
     # 鬼モードならではの演出（背景を赤っぽくする警告など）
     st.error("いうことをきかないこは、おにさんがくるぞ……！")
@@ -228,8 +228,11 @@ if st.session_state["child_name"] and st.session_state["child_name"] != st.sessi
     st.session_state["total_points"] = load_child_total(st.session_state["child_name"])  # ←DBから復元
     st.session_state["prev_child_name"] = st.session_state["child_name"]                 # ←名前更新
 
-# --------------------------------
+# --- total_points を必ず先に用意しておく（KeyError防止） ---
+if "total_points" not in st.session_state:
+    st.session_state["total_points"] = 0
 
+# --------------------------------
 
 # 画面左右カラム
 left_col, right_col = st.columns([1, 4], gap="large")  # 左細/右太
