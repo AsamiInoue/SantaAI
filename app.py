@@ -118,8 +118,9 @@ if st.session_state["child_name"] and st.session_state["child_name"] != st.sessi
 # よいこポイント
 with st.sidebar:
     st.markdown("### よいこポイント")
-    st.metric("いまのポイント", st.session_state["total_points"])
-    st.caption("もくひょうポイント： （あとで決めよう）")  # TODO: 目標ポイントはあとで決定
+    points_box = st.empty()  # ←★追加：あとで更新する表示箱
+    points_box.metric("いまのポイント", st.session_state["total_points"])  
+    st.caption("もくひょうポイント： （あとで決めよう）") # 後で決める
 
 # ---------------------------
 # モード切替時に会話履歴をリセット
@@ -331,14 +332,13 @@ if user_input := st.chat_input("ここになにかかいてね..."):
         if add_points > 0:
             st.session_state["total_points"] += add_points
 
-            # Points_log に保存
-            insert_points_log(st.session_state["child_name"], matched_rows, user_input)
+        points_box.metric("いまのポイント", st.session_state["total_points"])
 
-            # For Children に合計保存
-            upsert_child_total(st.session_state["child_name"], st.session_state["total_points"])
+        insert_points_log(st.session_state["child_name"], matched_rows, user_input)
+        upsert_child_total(st.session_state["child_name"], st.session_state["total_points"])
 
-            matched_words = [r["keyword"] for r in matched_rows]
-            st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
+        matched_words = [r["keyword"] for r in matched_rows]
+        st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
 
     # AIからの返答
     try:
