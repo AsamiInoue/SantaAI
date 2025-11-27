@@ -173,15 +173,15 @@ ONI_PROMPT = """
 """
 # 5. モードに合わせて変数の中身を変える
 if mode == "サンタさん 🎅":
-    header_title = "🎅 サンタさんとおはなししよう！"  # ← 追加
+    header_title = "🎅 サンタさんとおはなししよう！" 
     system_prompt = SANTA_PROMPT
     ai_avatar = "🎅"
 else:
-    header_title = "👹 コラ！おにさんだぞ！"          # ← 追加
+    header_title = "👹 コラ！おにさんだぞ！" 
     system_prompt = ONI_PROMPT
     ai_avatar = "👹"
     
-    # 鬼モードならではの演出（背景を赤っぽくする警告など）
+    # 鬼モードならではの演出
     st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
 # Supabaseから有効なキーワード取得
@@ -258,7 +258,7 @@ with right_col:
     st.markdown('<div class="right-card">', unsafe_allow_html=True)
     st.markdown("#### イラスト")
     st.image(
-        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
+        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png", width=200,
         caption="サンタさん）",
         use_container_width=True
     )
