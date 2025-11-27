@@ -259,8 +259,7 @@ with right_col:
     st.markdown("#### イラスト")
     st.image(
         "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png", width=200,
-        caption="サンタさん）",
-        use_container_width=True
+        caption="サンタさん）"
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
